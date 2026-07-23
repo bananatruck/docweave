@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DocWeave — distributed documentation crawler</title>
+  <style>
+    :root{--bg:#09111f;--panel:#111c2f;--line:#263755;--text:#edf4ff;--muted:#91a4c4;--cyan:#51d9d0;--violet:#a78bfa;--red:#fb7185}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#172a46 0,transparent 35%),var(--bg);color:var(--text);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+    main{max-width:1180px;margin:auto;padding:40px 22px 70px}header{display:flex;justify-content:space-between;align-items:end;margin-bottom:30px}h1{font-size:40px;line-height:1;margin:0;letter-spacing:-2px}h1 span{color:var(--cyan)}h2{font-size:16px;margin:0 0 16px;color:var(--muted);text-transform:uppercase;letter-spacing:2px}
+    .tag{border:1px solid var(--line);border-radius:100px;padding:6px 12px;color:var(--cyan)}.grid{display:grid;grid-template-columns:340px 1fr;gap:18px}.panel{background:linear-gradient(145deg,rgba(17,28,47,.94),rgba(11,20,35,.94));border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 18px 50px rgba(0,0,0,.2)}
+    label{display:block;color:var(--muted);font-size:12px;margin:14px 0 6px}input{width:100%;border:1px solid var(--line);border-radius:8px;background:#08101e;color:var(--text);padding:11px;font:inherit}button{width:100%;margin-top:16px;padding:12px;border:0;border-radius:8px;background:linear-gradient(90deg,var(--cyan),#67a7ff);color:#07111d;font:bold 14px inherit;cursor:pointer}button.secondary{background:transparent;color:var(--cyan);border:1px solid var(--cyan)}
+    .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}.stat{padding:14px;border:1px solid var(--line);border-radius:10px}.stat b{font-size:25px;display:block}.stat small{color:var(--muted)}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}th{color:var(--muted);font-size:11px;text-transform:uppercase}.status{color:var(--cyan)}a{color:#8cc8ff}.empty{padding:45px;text-align:center;color:var(--muted)}#message{min-height:24px;color:var(--red);margin-top:10px}.crawl{cursor:pointer}.crawl:hover{background:#182740}.toolbar{display:flex;gap:10px;margin-bottom:15px}.toolbar input{flex:1}.toolbar button{width:auto;margin:0}
+    @media(max-width:850px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}header{align-items:start;gap:15px;flex-direction:column}}
+  </style>
+</head>
+<body><main>
+  <header><div><h1>Doc<span>Weave</span></h1><div style="color:var(--muted);margin-top:9px">policy-aware • lease-coordinated • observable</div></div><div class="tag">SYSTEM ONLINE</div></header>
+  <div class="grid">
+    <aside>
+      <section class="panel"><h2>New crawl</h2>
+        <form id="create">
+          <label for="seed">Seed URL</label><input id="seed" value="https://go.dev/doc/" required>
+          <label for="hosts">Allowed hosts</label><input id="hosts" value="go.dev">
+          <label for="pages">Maximum pages</label><input id="pages" type="number" value="100" min="1" max="100000">
+          <label for="depth">Maximum depth</label><input id="depth" type="number" value="2" min="0" max="10">
+          <label for="delay">Host delay (ms)</label><input id="delay" type="number" value="500" min="100">
+          <label for="key">API key (write operations)</label><input id="key" type="password" autocomplete="off">
+          <button>Launch crawl →</button><div id="message"></div>
+        </form>
+      </section>
+      <section class="panel" style="margin-top:18px"><h2>Recent crawls</h2><div id="crawls" class="empty">No crawls yet.</div></section>
+    </aside>
+    <section class="panel">
+      <h2 id="title">Crawl telemetry</h2>
+      <div class="stats">
+        <div class="stat"><b id="s-pages">—</b><small>pages</small></div>
+        <div class="stat"><b id="s-queued">—</b><small>queued</small></div>
+        <div class="stat"><b id="s-active">—</b><small>leased</small></div>
+        <div class="stat"><b id="s-failed">—</b><small>failed</small></div>
+        <div class="stat"><b id="s-changes">—</b><small>changes</small></div>
+      </div>
+      <div class="toolbar"><input id="search" placeholder="Full-text search…"><button class="secondary" id="recrawl" type="button">Recrawl</button></div>
+      <div id="pages" class="empty">Select or create a crawl to inspect its pages.</div>
+    </section>
+  </div>
+</main>
+<script>
+let selected="", stream;
+const el=id=>document.getElementById(id);
+async function api(path, options={}) {
+  const response=await fetch(path, options), body=await response.json();
+  if(!response.ok) throw new Error(body.error?.message||"Request failed");
+  return body;
+}
+async function loadCrawls(){
+  const body=await api("/api/v1/crawls");
+  el("crawls").innerHTML=body.crawls.length?body.crawls.map(c=>`<div class="crawl" data-id="${c.id}" style="padding:10px;border-bottom:1px solid var(--line)"><span class="status">${c.status}</span><br><small>${c.id.slice(0,8)} · ${c.pages} pages</small></div>`).join(""):'<div class="empty">No crawls yet.</div>';
+  document.querySelectorAll(".crawl").forEach(node=>node.onclick=()=>select(node.dataset.id));
+}
+async function select(id){
+  selected=id;if(stream)stream.close();el("title").textContent="Crawl "+id.slice(0,8);
+  stream=new EventSource(`/api/v1/crawls/${id}/events`);
+  stream.addEventListener("crawl",event=>{renderStats(JSON.parse(event.data));loadPages()});
+  await loadPages();
+}
+function renderStats(c){el("s-pages").textContent=c.pages;el("s-queued").textContent=c.queued;el("s-active").textContent=c.leased;el("s-failed").textContent=c.failed;el("s-changes").textContent=c.changes}
+async function loadPages(){
+  if(!selected)return;const q=encodeURIComponent(el("search").value),body=await api(`/api/v1/crawls/${selected}/pages?q=${q}`);
+  el("pages").innerHTML=body.pages.length?`<table><thead><tr><th>Title</th><th>Status</th><th>Versions</th><th>Fetched</th></tr></thead><tbody>${body.pages.map(p=>`<tr><td><a href="${p.url}" target="_blank" rel="noreferrer">${escapeHTML(p.title||p.url)}</a></td><td>${p.status_code}</td><td>${p.versions}</td><td>${new Date(p.fetched_at).toLocaleTimeString()}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">No matching pages yet.</div>';
+}
+function escapeHTML(value){const d=document.createElement("div");d.textContent=value;return d.innerHTML}
+el("create").onsubmit=async event=>{event.preventDefault();el("message").textContent="";try{
+  const body=await api("/api/v1/crawls",{method:"POST",headers:{"Content-Type":"application/json","X-API-Key":el("key").value},body:JSON.stringify({seed_urls:[el("seed").value],allowed_hosts:el("hosts").value.split(",").map(x=>x.trim()),max_pages:+el("pages").value,max_depth:+el("depth").value,crawl_delay_ms:+el("delay").value})});
+  await loadCrawls();select(body.id)
+}catch(error){el("message").textContent=error.message}};
+el("recrawl").onclick=async()=>{if(!selected)return;try{await api(`/api/v1/crawls/${selected}/recrawl`,{method:"POST",headers:{"X-API-Key":el("key").value}});select(selected)}catch(error){el("message").textContent=error.message}};
+let searchTimer;el("search").oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(loadPages,250)};
+loadCrawls().catch(error=>el("message").textContent=error.message);setInterval(loadCrawls,5000);
+</script></body></html>

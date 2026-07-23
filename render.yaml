@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: docweave
+    runtime: docker
+    plan: free
+    healthCheckPath: /readyz
+    envVars:
+      - key: DOCWEAVE_DATABASE_URL
+        fromDatabase:
+          name: docweave-db
+          property: connectionString
+      - key: DOCWEAVE_ROLE
+        value: all
+      - key: DOCWEAVE_ADDR
+        value: :10000
+      - key: DOCWEAVE_WORKERS
+        value: "2"
+      - key: DOCWEAVE_PUBLIC_DEMO
+        value: "true"
+      - key: DOCWEAVE_DEMO_HOSTS
+        value: go.dev,pkg.go.dev
+      - key: DOCWEAVE_API_KEY
+        generateValue: true
+databases:
+  - name: docweave-db
+    plan: free
+    databaseName: docweave
+    user: docweave

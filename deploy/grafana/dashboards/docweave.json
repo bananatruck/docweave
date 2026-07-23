@@ -1,0 +1,39 @@
+{
+  "title": "DocWeave Crawler",
+  "uid": "docweave",
+  "schemaVersion": 41,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "type": "timeseries", "title": "Fetch throughput", "id": 1,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(rate(docweave_fetches_total[1m])) by (outcome)", "legendFormat": "{{outcome}}"}]
+    },
+    {
+      "type": "timeseries", "title": "p95 fetch latency", "id": 2,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(docweave_fetch_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95"}]
+    },
+    {
+      "type": "stat", "title": "Active workers", "id": 3,
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(docweave_active_workers)"}]
+    },
+    {
+      "type": "stat", "title": "Links discovered", "id": 4,
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(docweave_links_discovered_total)"}]
+    },
+    {
+      "type": "piechart", "title": "HTTP outcomes", "id": 5,
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(docweave_fetches_total) by (outcome)", "legendFormat": "{{outcome}}"}]
+    }
+  ]
+}

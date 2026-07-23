@@ -1,0 +1,51 @@
+name: CI
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: docweave_test
+          POSTGRES_USER: docweave
+          POSTGRES_PASSWORD: docweave
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docweave"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DOCWEAVE_TEST_DATABASE_URL: postgres://docweave:docweave@localhost:5432/docweave_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - run: go mod download
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race -coverprofile=coverage.out ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: go build ./cmd/...
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: docweave:${{ github.sha }}
