@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="DocWeave is a policy-aware distributed documentation crawler written in Go.">
+    <meta name="theme-color" content="#101519">
+    <title>DocWeave — Distributed crawling with a conscience</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header>
+      <a class="brand" href="#top" aria-label="DocWeave home"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span><span>DocWeave</span></a>
+      <nav aria-label="Primary navigation"><a href="#system">System</a><a href="#principles">Principles</a><a href="#benchmark">Benchmark</a><a href="#api">API</a></nav>
+      <a class="header-cta" href="https://github.com/bananatruck/docweave">View source <span>↗</span></a>
+    </header>
+
+    <main id="main">
+      <section class="hero grid-bg" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow">Policy-aware · Distributed · Written in Go</p>
+          <h1>Crawl docs.<br><em>Keep their history.</em></h1>
+          <p class="lede">DocWeave coordinates stateless workers through a durable PostgreSQL frontier—respecting host boundaries, recovering work, suppressing duplicates, and preserving content versions for change detection.</p>
+          <div class="actions"><a class="button primary" href="https://github.com/bananatruck/docweave">Explore on GitHub <span>↗</span></a><a class="button outline" href="#system">Inspect the system <span>↓</span></a></div>
+          <div class="proof"><span><b>robots.txt</b> honored</span><span><b>SSRF</b> defended</span><span><b>PostgreSQL</b> coordinated</span></div>
+        </div>
+
+        <div class="system-window" aria-label="DocWeave crawl topology preview">
+          <div class="window-bar"><span></span><span></span><span></span><small>crawl / docs.example.com</small><b>RUNNING</b></div>
+          <div class="topology">
+            <div class="node source"><small>SOURCE</small><b>docs.example.com</b><span>explicit boundary</span></div>
+            <div class="connector"><i></i><span>host budget · 100ms</span></div>
+            <div class="worker-grid"><div class="node"><small>WORKER 01</small><b>leased</b><span>page/842</span></div><div class="node"><small>WORKER 02</small><b>fetching</b><span>page/843</span></div><div class="node"><small>WORKER 03</small><b>parsing</b><span>page/841</span></div><div class="node"><small>WORKER 04</small><b>ready</b><span>queue: 154</span></div></div>
+            <div class="connector vertical"><i></i><span>durable frontier</span></div>
+            <div class="node database"><small>POSTGRESQL</small><b>leases · versions · search</b><span>single source of crawl truth</span></div>
+          </div>
+          <div class="status-strip"><span><i class="green"></i> 1,000 fetched</span><span><i></i> 0 duplicates</span><span><i></i> 0 errors</span></div>
+        </div>
+      </section>
+
+      <section class="system" id="system">
+        <div class="section-intro"><p class="eyebrow">Coordination without another queue</p><h2>Workers scale out.<br>The rules stay global.</h2><p>PostgreSQL leases provide crash-safe, at-least-once work distribution. A shared host-limit table ensures adding replicas never multiplies a site’s request rate.</p></div>
+        <div class="architecture" aria-label="DocWeave architecture">
+          <article><span>01</span><b>HTTP API</b><small>Create crawls, search pages, stream progress.</small></article>
+          <i>↘</i>
+          <article class="accent"><span>02</span><b>PostgreSQL frontier</b><small>Lease work, deduplicate URLs, retain versions.</small></article>
+          <i>↙</i>
+          <article><span>03</span><b>Stateless workers</b><small>Fetch, parse, normalize, and recover expired leases.</small></article>
+          <i>↘</i>
+          <article><span>04</span><b>Public documentation</b><small>Bounded hosts, robots policy, conditional requests.</small></article>
+        </div>
+      </section>
+
+      <section class="principles grid-bg" id="principles">
+        <div class="section-heading"><p class="eyebrow">Built for responsible collection</p><h2>A crawler, not a scraping-evasion toolkit.</h2></div>
+        <div class="cards">
+          <article><span>POLICY</span><h3>Boundaries are explicit.</h3><p>Allowed hosts are validated up front. Private-network targets are rejected by default and redirects are checked again.</p><b>01</b></article>
+          <article><span>POLITENESS</span><h3>One shared host budget.</h3><p>Every worker transacts against the same rate limit, so horizontal scale never becomes accidental overload.</p><b>02</b></article>
+          <article><span>RECOVERY</span><h3>Leases make crashes ordinary.</h3><p>If a worker disappears, expired work returns to the frontier for another worker—without an extra queue service.</p><b>03</b></article>
+          <article><span>HISTORY</span><h3>Changes stay inspectable.</h3><p>Conditional requests avoid unnecessary downloads while distinct content versions remain available for comparison.</p><b>04</b></article>
+        </div>
+      </section>
+
+      <section class="benchmark" id="benchmark">
+        <div><p class="eyebrow">Measured host-politeness benchmark</p><h2>1,000 pages.<br>Zero shortcuts.</h2><p>A four-worker, two-process local crawl held one shared 100&nbsp;ms host budget. The result measures coordination correctness—not maximum network throughput.</p><a href="https://github.com/bananatruck/docweave/blob/main/docs/BENCHMARKS.md">Read the benchmark methodology ↗</a></div>
+        <div class="metrics">
+          <article><small>COMPLETED</small><strong>1,000</strong><span>pages</span></article>
+          <article><small>THROUGHPUT</small><strong>10.01</strong><span>pages / second</span></article>
+          <article><small>ELAPSED</small><strong>99.908</strong><span>seconds</span></article>
+          <article><small>INTEGRITY</small><strong>0 / 0</strong><span>errors / duplicates</span></article>
+        </div>
+      </section>
+
+      <section class="api" id="api">
+        <div class="code-window"><div class="window-bar"><span></span><span></span><span></span><small>create a crawl</small></div><pre><code><i>POST</i> /api/v1/crawls
+
+{
+  <b>"root_url"</b>: "https://docs.example.com",
+  <b>"allowed_hosts"</b>: ["docs.example.com"],
+  <b>"max_depth"</b>: 3,
+  <b>"crawl_delay_ms"</b>: 500
+}
+
+<span>→ live progress over server-sent events</span></code></pre></div>
+        <div><p class="eyebrow">Observable by default</p><h2>API, dashboard, metrics, and live progress.</h2><p>Create and recrawl jobs through a versioned HTTP API. Search captured pages with PostgreSQL full text search, watch server-sent events, and inspect provisioned Prometheus and Grafana telemetry.</p><ul><li>Readiness and health checks</li><li>Structured JSON logs</li><li>Prometheus crawl metrics</li><li>Provisioned Grafana dashboard</li></ul></div>
+      </section>
+
+      <section class="cta"><p class="eyebrow">Open source · MIT</p><h2>Weave a reliable record of documentation.</h2><a class="button light" href="https://github.com/bananatruck/docweave">View DocWeave on GitHub <span>↗</span></a></section>
+    </main>
+    <footer><a class="brand" href="#top"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span><span>DocWeave</span></a><p>Responsible, distributed documentation crawling.</p><a href="https://github.com/bananatruck/docweave">Source ↗</a></footer>
+  </body>
+</html>
