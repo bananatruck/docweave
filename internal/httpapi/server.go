@@ -21,8 +21,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+type crawlStore interface {
+	CreateCrawl(ctx context.Context, seeds, hosts []string, maxDepth, maxPages, delayMS int) (string, error)
+	GetCrawl(ctx context.Context, id string) (store.Crawl, error)
+	ListCrawls(ctx context.Context, limit int) ([]store.Crawl, error)
+	ListPages(ctx context.Context, crawlID, query string, limit int) ([]store.Page, error)
+	ListChanges(ctx context.Context, crawlID string) ([]store.Change, error)
+	GetVersions(ctx context.Context, crawlID, pageID string) ([]store.Version, error)
+	Recrawl(ctx context.Context, crawlID string) error
+	Ping(ctx context.Context) error
+}
+
 type Server struct {
-	store  *store.Store
+	store  crawlStore
 	cfg    config.Config
 	logger *slog.Logger
 }
@@ -35,7 +46,7 @@ type createCrawlRequest struct {
 	CrawlDelayMS int      `json:"crawl_delay_ms"`
 }
 
-func New(store *store.Store, cfg config.Config, logger *slog.Logger) http.Handler {
+func New(store crawlStore, cfg config.Config, logger *slog.Logger) http.Handler {
 	server := &Server{store: store, cfg: cfg, logger: logger}
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer)
@@ -64,7 +75,7 @@ func New(store *store.Store, cfg config.Config, logger *slog.Logger) http.Handle
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
-	if err := s.store.Pool.Ping(ctx); err != nil {
+	if err := s.store.Ping(ctx); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "database unavailable")
 		return
 	}

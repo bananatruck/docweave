@@ -102,6 +102,10 @@ func Hash(value string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func (s *Store) Ping(ctx context.Context) error {
+	return s.Pool.Ping(ctx)
+}
+
 func (s *Store) CreateCrawl(ctx context.Context, seeds, hosts []string, maxDepth, maxPages, delayMS int) (string, error) {
 	seedsJSON, _ := json.Marshal(seeds)
 	tx, err := s.Pool.Begin(ctx)
